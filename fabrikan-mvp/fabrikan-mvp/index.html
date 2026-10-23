@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Fabrikan — Smart Inventory</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root { color-scheme: light; }
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .sidebar-link.active { background:#e0f2fe; color:#075985; font-weight:600; }
+    .sidebar-link.active .nav-icon { color:#0284c7; }
+    .nav-icon { width:18px;height:18px; }
+    .metric-card { transition: transform .18s ease, box-shadow .18s ease; }
+    .metric-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15,23,42,.07); }
+    .table-row:hover { background:#f8fafc; }
+    .modal-backdrop { background:rgba(15,23,42,.45); backdrop-filter:blur(3px); }
+    .toast { animation: slide-in .22s ease-out; }
+    @keyframes slide-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .chart-bar { transition: height .35s ease; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <div class="min-h-screen">
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0">
+      <div class="flex h-20 items-center gap-3 border-b border-slate-100 px-6">
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-white shadow-lg shadow-sky-200"><i data-lucide="boxes" class="h-5 w-5"></i></div>
+        <div><div class="text-lg font-extrabold tracking-tight text-slate-900">fabrikan<span class="text-sky-600">.id</span></div><div class="text-[11px] font-medium uppercase tracking-[.18em] text-slate-400">Smart Inventory</div></div>
+        <button id="closeSidebar" class="ml-auto rounded-lg p-2 text-slate-400 hover:bg-slate-100 lg:hidden" aria-label="Tutup menu"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <div class="px-4 pt-6">
+        <p class="px-3 pb-3 text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Workspace</p>
+        <nav class="space-y-1">
+          <button class="sidebar-link active flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50" data-page="dashboard"><i data-lucide="layout-dashboard" class="nav-icon"></i> Dashboard</button>
+          <button class="sidebar-link flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50" data-page="inventory"><i data-lucide="package" class="nav-icon"></i> Inventaris bahan baku <span id="navStockCount" class="ml-auto rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">3</span></button>
+          <button class="sidebar-link flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50" data-page="movements"><i data-lucide="arrow-left-right" class="nav-icon"></i> Pergerakan stok</button>
+          <button class="sidebar-link flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50" data-page="suppliers"><i data-lucide="truck" class="nav-icon"></i> Pemasok</button>
+        </nav>
+      </div>
+      <div class="mt-8 px-4">
+        <p class="px-3 pb-3 text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Pengaturan</p>
+        <button id="helpButton" class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-600 hover:bg-slate-50"><i data-lucide="circle-help" class="nav-icon"></i> Bantuan</button>
+      </div>
+      <div class="mt-auto p-4">
+        <div class="rounded-2xl bg-slate-900 p-4 text-white">
+          <div class="mb-2 flex items-center gap-2"><i data-lucide="scan-barcode" class="h-4 w-4 text-sky-300"></i><span class="text-xs font-semibold text-sky-200">Pindai lebih cepat</span></div>
+          <p class="text-sm font-semibold">Kelola stok tanpa ribet.</p><p class="mt-1 text-xs leading-5 text-slate-400">Versi demo untuk simulasi alur inventaris.</p>
+          <button id="quickScan" class="mt-3 w-full rounded-lg bg-sky-500 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-400">Simulasikan scan</button>
+        </div>
+        <div class="mt-4 flex items-center gap-3 px-2">
+          <div class="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-sm font-bold text-sky-700">AR</div>
+          <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold text-slate-800">Admin Gudang</p><p class="text-xs text-slate-400">Administrator</p></div>
+          <i data-lucide="chevrons-up-down" class="h-4 w-4 text-slate-400"></i>
+        </div>
+      </div>
+    </aside>
+
+    <div id="sidebarOverlay" class="fixed inset-0 z-20 hidden bg-slate-900/40 lg:hidden"></div>
+    <main class="min-h-screen lg:ml-64">
+      <header class="sticky top-0 z-10 flex h-20 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur md:px-8">
+        <div class="flex items-center gap-3">
+          <button id="openSidebar" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden" aria-label="Buka menu"><i data-lucide="menu" class="h-5 w-5"></i></button>
+          <div><p class="text-xs font-medium text-slate-400">Workspace / <span id="breadcrumb">Dashboard</span></p><h1 id="pageTitle" class="mt-1 text-lg font-bold tracking-tight text-slate-900 md:text-xl">Ringkasan inventaris</h1></div>
+        </div>
+        <div class="flex items-center gap-2 md:gap-4">
+          <div class="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 sm:flex"><span class="h-2 w-2 rounded-full bg-emerald-500"></span> Gudang utama</div>
+          <button id="notificationButton" class="relative rounded-xl border border-slate-200 p-2.5 text-slate-500 hover:bg-slate-50" aria-label="Notifikasi"><i data-lucide="bell" class="h-5 w-5"></i><span class="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white"></span></button>
+          <button id="addTopButton" class="hidden items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-sky-100 hover:bg-sky-700 sm:flex"><i data-lucide="plus" class="h-4 w-4"></i> Tambah bahan</button>
+        </div>
+      </header>
+
+      <div class="mx-auto max-w-[1440px] p-4 md:p-8">
+        <section id="dashboardPage" class="page-section space-y-6">
+          <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div><p class="text-sm text-slate-500">Selamat datang kembali, Admin 👋</p><h2 class="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 md:text-3xl">Pantau stok dengan lebih cerdas.</h2><p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Ini ringkasan kondisi bahan baku di gudang. Data pada halaman ini merupakan data simulasi untuk prototype.</p></div>
+            <button id="exportButton" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"><i data-lucide="download" class="h-4 w-4"></i> Ekspor laporan</button>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="metric-card rounded-2xl border border-slate-200 bg-white p-5"><div class="flex items-center justify-between"><div class="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><i data-lucide="package" class="h-5 w-5"></i></div><span class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">+8,2%</span></div><p class="mt-5 text-sm font-medium text-slate-500">Total jenis bahan</p><div class="mt-1 flex items-end gap-2"><span id="metricKinds" class="text-3xl font-extrabold tracking-tight text-slate-900">128</span><span class="mb-1 text-xs text-slate-400">SKU aktif</span></div></div>
+            <div class="metric-card rounded-2xl border border-slate-200 bg-white p-5"><div class="flex items-center justify-between"><div class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"><i data-lucide="warehouse" class="h-5 w-5"></i></div><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Gudang A</span></div><p class="mt-5 text-sm font-medium text-slate-500">Total kuantitas stok</p><div class="mt-1 flex items-end gap-2"><span id="metricQuantity" class="text-3xl font-extrabold tracking-tight text-slate-900">8.420</span><span class="mb-1 text-xs text-slate-400">unit gabungan</span></div></div>
+            <div class="metric-card rounded-2xl border border-slate-200 bg-white p-5"><div class="flex items-center justify-between"><div class="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600"><i data-lucide="alert-triangle" class="h-5 w-5"></i></div><span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Perlu dicek</span></div><p class="mt-5 text-sm font-medium text-slate-500">Stok menipis</p><div class="mt-1 flex items-end gap-2"><span id="metricLow" class="text-3xl font-extrabold tracking-tight text-slate-900">3</span><span class="mb-1 text-xs text-slate-400">bahan di bawah batas</span></div></div>
+            <div class="metric-card rounded-2xl border border-slate-200 bg-white p-5"><div class="flex items-center justify-between"><div class="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-600"><i data-lucide="shopping-cart" class="h-5 w-5"></i></div><span class="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">Saran sistem</span></div><p class="mt-5 text-sm font-medium text-slate-500">Rekomendasi pengadaan</p><div class="mt-1 flex items-end gap-2"><span id="metricOrders" class="text-3xl font-extrabold tracking-tight text-slate-900">5</span><span class="mb-1 text-xs text-slate-400">item untuk ditinjau</span></div></div>
+          </div>
+
+          <div class="grid gap-6 xl:grid-cols-3">
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 xl:col-span-2">
+              <div class="flex flex-wrap items-start justify-between gap-3"><div><h3 class="font-bold text-slate-900">Aktivitas inventaris</h3><p class="mt-1 text-sm text-slate-500">Ringkasan barang masuk dan keluar selama 7 hari</p></div><button id="chartPeriod" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">7 hari terakhir <i data-lucide="chevron-down" class="ml-1 inline h-3 w-3"></i></button></div>
+              <div class="mt-7 flex h-48 items-end justify-between gap-3 border-b border-slate-100 pb-2 sm:gap-5" id="activityChart">
+                <div class="flex h-full flex-1 flex-col items-center justify-end gap-2"><div class="flex h-[75%] w-full items-end justify-center gap-1"><span class="chart-bar w-3 rounded-t bg-sky-500" style="height:60%"></span><span class="chart-bar w-3 rounded-t bg-emerald-400" style="height:40%"></span></div><span class="text-[11px] text-slate-400">Sen</span></div>
+                <div class="flex h-full flex-1 flex-col items-center justify-end gap-2"><div class="flex h-[75%] w-full items-end justify-center gap-1"><span class="chart-bar w-3 rounded-t bg-sky-500" style="height:82%"></span><span class="chart-bar w-3 rounded-t bg-emerald-400" style="height:55%"></span></div><span class="text-[11px] text-slate-400">Sel</span></div>
+                <div class="flex h-full flex-1 flex-col items-center justify-end gap-2"><div class="flex h-[75%] w-full items-end justify-center gap-1"><span class="chart-bar w-3 rounded-t bg-sky-500" style="height:45%"></span><span class="chart-bar w-3 rounded-t bg-emerald-400" style="height:70%"></span></div><span class="text-[11px] text-slate-400">Rab</span></div>
+                <div class="flex h-full flex-1 flex-col items-center justify-end gap-2"><div class="flex h-[75%] w-full items-end justify-center gap-1"><span class="chart-bar w-3 rounded-t bg-sky-500" style="height:68%"></span><span class="chart-bar w-3 rounded-t bg-emerald-400" style="height:35%"></span></div><span class="text-[11px] text-slate-400">Kam</span></div>
+                <div class="flex h-full flex-1 flex-col items-center justify-end gap-2"><div class="flex h-[75%] w-full items-end justify-center gap-1"><span class="chart-bar w-3 rounded-t bg-sky-500" style="height:52%"></span><span class="chart-bar w-3 rounded-t bg-emerald-400" style="height:78%"></span></div><span class="text-[11px] text-slate-400">Jum</span></div>
+                <div class="flex h-full flex-1 flex-col items-center justify-end gap-2"><div class="flex h-[75%] w-full items-end justify-center gap-1"><span class="chart-bar w-3 rounded-t bg-sky-500" style="height:90%"></span><span class="chart-bar w-3 rounded-t bg-emerald-400" style="height:58%"></span></div><span class="text-[11px] text-slate-400">Sab</span></div>
+                <div class="flex h-full flex-1 flex-col items-center justify-end gap-2"><div class="flex h-[75%] w-full items-end justify-center gap-1"><span class="chart-bar w-3 rounded-t bg-sky-500" style="height:62%"></span><span class="chart-bar w-3 rounded-t bg-emerald-400" style="height:45%"></span></div><span class="text-[11px] text-slate-400">Min</span></div>
+              </div>
+              <div class="mt-4 flex flex-wrap gap-5 text-xs text-slate-500"><span class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-sm bg-sky-500"></span> Barang masuk</span><span class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-sm bg-emerald-400"></span> Barang keluar</span><span class="ml-auto text-slate-400">Data simulasi</span></div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
+              <div class="flex items-center justify-between"><div><h3 class="font-bold text-slate-900">Perlu perhatian</h3><p class="mt-1 text-sm text-slate-500">Stok mencapai batas minimum</p></div><span class="rounded-lg bg-amber-50 p-2 text-amber-600"><i data-lucide="bell-ring" class="h-4 w-4"></i></span></div>
+              <div id="lowStockList" class="mt-5 space-y-4"></div>
+              <button class="mt-5 w-full rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50" data-go="inventory">Lihat semua bahan <i data-lucide="arrow-up-right" class="ml-1 inline h-4 w-4"></i></button>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-white">
+            <div class="flex flex-col justify-between gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center md:px-6"><div><h3 class="font-bold text-slate-900">Bahan baku terbaru</h3><p class="mt-1 text-sm text-slate-500">Bahan yang terakhir diperbarui</p></div><button class="text-sm font-semibold text-sky-700 hover:text-sky-800" data-go="inventory">Buka inventaris <i data-lucide="arrow-right" class="ml-1 inline h-4 w-4"></i></button></div>
+            <div class="overflow-x-auto"><table class="w-full min-w-[680px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-400"><tr><th class="px-6 py-3 font-semibold">Nama bahan</th><th class="px-6 py-3 font-semibold">Kode SKU</th><th class="px-6 py-3 font-semibold">Stok tersedia</th><th class="px-6 py-3 font-semibold">Status</th><th class="px-6 py-3 font-semibold">Lokasi</th></tr></thead><tbody id="recentTableBody"></tbody></table></div>
+          </div>
+        </section>
+
+        <section id="inventoryPage" class="page-section hidden space-y-6">
+          <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><h2 class="text-2xl font-extrabold tracking-tight text-slate-900">Inventaris bahan baku</h2><p class="mt-2 text-sm text-slate-500">Kelola data persediaan dan pantau status setiap bahan.</p></div><button id="addInventoryButton" class="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700"><i data-lucide="plus" class="h-4 w-4"></i> Tambah bahan</button></div>
+          <div class="rounded-2xl border border-slate-200 bg-white">
+            <div class="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between md:p-5">
+              <div class="relative w-full md:max-w-sm"><i data-lucide="search" class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i><input id="searchInput" type="search" placeholder="Cari nama atau kode bahan..." class="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-50"></div>
+              <div class="flex flex-wrap gap-2"><select id="statusFilter" class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-600 outline-none focus:border-sky-400"><option value="all">Semua status</option><option value="low">Stok menipis</option><option value="normal">Stok aman</option></select><button id="scanInventory" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"><i data-lucide="scan-barcode" class="h-4 w-4"></i> Scan kode</button></div>
+            </div>
+            <div class="overflow-x-auto"><table class="w-full min-w-[760px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-400"><tr><th class="px-5 py-3 font-semibold">Nama bahan</th><th class="px-5 py-3 font-semibold">Kode SKU</th><th class="px-5 py-3 font-semibold">Stok tersedia</th><th class="px-5 py-3 font-semibold">Batas minimum</th><th class="px-5 py-3 font-semibold">Status</th><th class="px-5 py-3 text-right font-semibold">Aksi</th></tr></thead><tbody id="inventoryTableBody"></tbody></table></div>
+            <div class="flex flex-col justify-between gap-2 border-t border-slate-100 px-5 py-4 text-xs text-slate-400 sm:flex-row"><span id="inventoryCount">Menampilkan 0 bahan</span><span>Prototype • Perubahan data hanya tersimpan selama halaman dibuka</span></div>
+          </div>
+        </section>
+
+        <section id="movementsPage" class="page-section hidden space-y-6">
+          <div><h2 class="text-2xl font-extrabold tracking-tight text-slate-900">Pergerakan stok</h2><p class="mt-2 text-sm text-slate-500">Riwayat simulasi transaksi bahan masuk dan keluar.</p></div>
+          <div class="grid gap-4 sm:grid-cols-3"><div class="rounded-2xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">Transaksi hari ini</p><p id="movementTotal" class="mt-2 text-3xl font-extrabold text-slate-900">12</p></div><div class="rounded-2xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">Barang masuk</p><p class="mt-2 text-3xl font-extrabold text-emerald-600">8 <span class="text-sm font-medium text-slate-400">transaksi</span></p></div><div class="rounded-2xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">Barang keluar</p><p class="mt-2 text-3xl font-extrabold text-sky-600">4 <span class="text-sm font-medium text-slate-400">transaksi</span></p></div></div>
+          <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white"><div class="border-b border-slate-100 p-5"><h3 class="font-bold">Aktivitas terbaru</h3></div><div class="overflow-x-auto"><table class="w-full min-w-[680px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-400"><tr><th class="px-5 py-3">Waktu</th><th class="px-5 py-3">Bahan</th><th class="px-5 py-3">Jenis</th><th class="px-5 py-3">Jumlah</th><th class="px-5 py-3">Petugas</th></tr></thead><tbody id="movementTableBody"></tbody></table></div></div>
+        </section>
+
+        <section id="suppliersPage" class="page-section hidden space-y-6">
+          <div><h2 class="text-2xl font-extrabold tracking-tight text-slate-900">Data pemasok</h2><p class="mt-2 text-sm text-slate-500">Daftar pemasok bahan baku untuk kebutuhan operasional.</p></div>
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div class="rounded-2xl border border-slate-200 bg-white p-5"><div class="flex items-center gap-3"><div class="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-600"><i data-lucide="factory" class="h-5 w-5"></i></div><div><h3 class="font-bold">PT Baja Sentosa</h3><p class="text-xs text-slate-400">Baja & logam</p></div><span class="ml-auto rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">Aktif</span></div><p class="mt-4 text-sm text-slate-500">supplier@bajasentosa.example</p><div class="mt-4 border-t border-slate-100 pt-4 text-xs text-slate-400">Lead time estimasi <strong class="text-slate-600">4 hari</strong></div><button class="supplier-order mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50" data-supplier="PT Baja Sentosa">Buat draft pesanan</button></div>
+            <div class="rounded-2xl border border-slate-200 bg-white p-5"><div class="flex items-center gap-3"><div class="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><i data-lucide="factory" class="h-5 w-5"></i></div><div><h3 class="font-bold">CV Polimer Jaya</h3><p class="text-xs text-slate-400">Plastik & polimer</p></div><span class="ml-auto rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">Aktif</span></div><p class="mt-4 text-sm text-slate-500">order@polimerjaya.example</p><div class="mt-4 border-t border-slate-100 pt-4 text-xs text-slate-400">Lead time estimasi <strong class="text-slate-600">3 hari</strong></div><button class="supplier-order mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50" data-supplier="CV Polimer Jaya">Buat draft pesanan</button></div>
+            <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-5"><div class="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-500"><i data-lucide="plus" class="h-5 w-5"></i></div><h3 class="mt-3 font-bold">Tambahkan pemasok</h3><p class="mt-1 text-sm leading-6 text-slate-500">Fitur demo untuk menggambarkan pengembangan modul pemasok selanjutnya.</p><button id="addSupplierButton" class="mt-4 w-full rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">Tambah pemasok</button></div>
+          </div>
+        </section>
+        <footer class="mt-10 flex flex-col justify-between gap-2 border-t border-slate-200 py-6 text-xs text-slate-400 sm:flex-row"><span>© 2026 Fabrikan.id · Smart Inventory & Supply Chain</span><span>Prototype MVP · Data bukan data operasional nyata</span></footer>
+      </div>
+    </main>
+  </div>
+
+  <div id="modalRoot" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+    <div class="modal-backdrop absolute inset-0" data-close-modal></div>
+    <div class="relative z-10 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+      <div class="flex items-start justify-between"><div><p id="modalEyebrow" class="text-xs font-bold uppercase tracking-[.16em] text-sky-600">Inventaris</p><h2 id="modalTitle" class="mt-1 text-xl font-extrabold text-slate-900">Tambah bahan baku</h2><p id="modalDescription" class="mt-1 text-sm text-slate-500">Lengkapi detail bahan di bawah ini.</p></div><button data-close-modal class="rounded-lg p-2 text-slate-400 hover:bg-slate-100" aria-label="Tutup modal"><i data-lucide="x" class="h-5 w-5"></i></button></div>
+      <form id="inventoryForm" class="mt-6 space-y-4">
+        <div><label for="materialName" class="mb-1.5 block text-sm font-semibold text-slate-700">Nama bahan</label><input id="materialName" required maxlength="70" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-50" placeholder="Contoh: Plat baja"></div>
+        <div class="grid gap-4 sm:grid-cols-2"><div><label for="materialSku" class="mb-1.5 block text-sm font-semibold text-slate-700">Kode SKU</label><input id="materialSku" required maxlength="20" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm uppercase outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-50" placeholder="BAH-001"></div><div><label for="materialUnit" class="mb-1.5 block text-sm font-semibold text-slate-700">Satuan</label><select id="materialUnit" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-sky-400"><option>pcs</option><option>kg</option><option>meter</option><option>liter</option><option>roll</option></select></div></div>
+        <div class="grid gap-4 sm:grid-cols-2"><div><label for="materialStock" class="mb-1.5 block text-sm font-semibold text-slate-700">Stok tersedia</label><input id="materialStock" required type="number" min="0" step="1" value="0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400"></div><div><label for="materialMin" class="mb-1.5 block text-sm font-semibold text-slate-700">Batas minimum</label><input id="materialMin" required type="number" min="0" step="1" value="10" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-sky-400"></div></div>
+        <div class="flex gap-3 pt-2"><button type="button" data-close-modal class="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50">Batal</button><button type="submit" class="flex-1 rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white hover:bg-sky-700">Simpan bahan</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastArea" class="fixed bottom-4 right-4 z-[60] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2" aria-live="polite"></div>
+
+  <script>
+    const materials = [
+      { name: "Plat Baja SPHC", sku: "MAT-001", stock: 420, min: 200, unit: "kg", location: "Rak A-01" },
+      { name: "Resin Polipropilena", sku: "MAT-002", stock: 85, min: 120, unit: "kg", location: "Rak B-03" },
+      { name: "Baut M8 Stainless", sku: "MAT-003", stock: 1250, min: 500, unit: "pcs", location: "Rak C-02" },
+      { name: "Kabel Tembaga 2mm", sku: "MAT-004", stock: 64, min: 100, unit: "meter", location: "Rak D-01" },
+      { name: "Cat Pelapis Industri", sku: "MAT-005", stock: 38, min: 50, unit: "liter", location: "Rak E-04" },
+      { name: "Lembaran Aluminium", sku: "MAT-006", stock: 310, min: 150, unit: "kg", location: "Rak A-04" },
+      { name: "Kemasan Karton", sku: "MAT-007", stock: 780, min: 300, unit: "pcs", location: "Rak F-02" },
+      { name: "Pelumas Mesin", sku: "MAT-008", stock: 92, min: 40, unit: "liter", location: "Rak G-01" }
+    ];
+    let movements = [
+      { time: "Hari ini, 10:42", name: "Plat Baja SPHC", type: "Masuk", qty: "+120 kg", staff: "R. Pratama" },
+      { time: "Hari ini, 09:18", name: "Resin Polipropilena", type: "Keluar", qty: "-35 kg", staff: "D. Saputra" },
+      { time: "Hari ini, 08:55", name: "Baut M8 Stainless", type: "Masuk", qty: "+250 pcs", staff: "R. Pratama" },
+      { time: "Kemarin, 16:20", name: "Kabel Tembaga 2mm", type: "Keluar", qty: "-20 meter", staff: "A. Wijaya" }
+    ];
+    const $ = (id) => document.getElementById(id);
+    const formatNumber = (n) => new Intl.NumberFormat("id-ID").format(n);
+    const isLow = (item) => item.stock <= item.min;
+    const safe = (value) => String(value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+    let editingSku = null;
+
+    function statusBadge(item) {
+      return isLow(item)
+        ? '<span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>Menipis</span>'
+        : '<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Aman</span>';
+    }
+    function renderLowStock() {
+      const low = materials.filter(isLow);
+      $("lowStockList").innerHTML = low.length ? low.map(item => `
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600"><i data-lucide="package-alert" class="h-4 w-4"></i></div>
+          <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold text-slate-800">${safe(item.name)}</p><p class="mt-0.5 text-xs text-slate-400">${formatNumber(item.stock)} ${safe(item.unit)} tersisa</p></div>
+          <span class="rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700">Min. ${formatNumber(item.min)}</span>
+        </div>`).join("") : '<p class="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700">Semua bahan berada di atas batas minimum.</p>';
+      $("navStockCount").textContent = low.length;
+    }
+    function renderTableRows(items, includeLocation = false) {
+      if (!items.length) return `<tr><td colspan="${includeLocation ? 5 : 6}" class="px-5 py-12 text-center text-sm text-slate-400">Tidak ada bahan yang cocok dengan pencarian.</td></tr>`;
+      return items.map(item => `<tr class="table-row border-t border-slate-100">
+        <td class="px-5 py-4"><div class="flex items-center gap-3"><div class="flex h-9 w-9 items-center justify-center rounded-lg ${isLow(item) ? "bg-amber-50 text-amber-600" : "bg-sky-50 text-sky-600"}"><i data-lucide="package" class="h-4 w-4"></i></div><div><p class="font-semibold text-slate-800">${safe(item.name)}</p><p class="mt-0.5 text-xs text-slate-400">Bahan baku</p></div></div></td>
+        <td class="px-5 py-4 font-mono text-xs text-slate-500">${safe(item.sku)}</td>
+        <td class="px-5 py-4"><span class="font-bold text-slate-800">${formatNumber(item.stock)}</span> <span class="text-xs text-slate-400">${safe(item.unit)}</span></td>
+        ${includeLocation ? `<td class="px-5 py-4">${statusBadge(item)}</td><td class="px-5 py-4 text-slate-500">${safe(item.location || "Rak baru")}</td>` : `<td class="px-5 py-4 text-slate-500">${formatNumber(item.min)} ${safe(item.unit)}</td><td class="px-5 py-4">${statusBadge(item)}</td><td class="px-5 py-4 text-right"><button class="adjust-stock rounded-lg p-2 text-slate-400 hover:bg-sky-50 hover:text-sky-700" data-sku="${safe(item.sku)}" title="Ubah stok"><i data-lucide="arrow-left-right" class="h-4 w-4"></i></button><button class="edit-item rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" data-sku="${safe(item.sku)}" title="Edit bahan"><i data-lucide="pencil" class="h-4 w-4"></i></button>`}</td>`}
+      </tr>`).join("");
+    }
+    function renderAll() {
+      $("recentTableBody").innerHTML = renderTableRows(materials.slice(0, 5), true);
+      const query = ($("searchInput")?.value || "").trim().toLowerCase();
+      const filter = $("statusFilter")?.value || "all";
+      const filtered = materials.filter(item => (item.name.toLowerCase().includes(query) || item.sku.toLowerCase().includes(query)) && (filter === "all" || (filter === "low" ? isLow(item) : !isLow(item))));
+      $("inventoryTableBody").innerHTML = renderTableRows(filtered);
+      $("inventoryCount").textContent = `Menampilkan ${filtered.length} dari ${materials.length} bahan`;
+      $("metricKinds").textContent = formatNumber(128 + Math.max(0, materials.length - 8));
+      $("metricQuantity").textContent = formatNumber(materials.reduce((sum, item) => sum + item.stock, 0));
+      $("metricLow").textContent = materials.filter(isLow).length;
+      $("metricOrders").textContent = materials.filter(isLow).length + 2;
+      renderLowStock();
+      $("movementTableBody").innerHTML = movements.map(m => `<tr class="border-t border-slate-100"><td class="whitespace-nowrap px-5 py-4 text-xs text-slate-500">${safe(m.time)}</td><td class="px-5 py-4 font-semibold">${safe(m.name)}</td><td class="px-5 py-4"><span class="rounded-full ${m.type === "Masuk" ? "bg-emerald-50 text-emerald-700" : "bg-sky-50 text-sky-700"} px-2.5 py-1 text-xs font-semibold">${safe(m.type)}</span></td><td class="px-5 py-4 font-bold ${m.type === "Masuk" ? "text-emerald-600" : "text-sky-600"}">${safe(m.qty)}</td><td class="px-5 py-4 text-slate-500">${safe(m.staff)}</td></tr>`).join("");
+      lucide.createIcons();
+    }
+    function toast(title, message, type = "success") {
+      const icon = type === "warning" ? "alert-triangle" : type === "info" ? "info" : "check-circle-2";
+      const color = type === "warning" ? "text-amber-600 bg-amber-50" : type === "info" ? "text-sky-600 bg-sky-50" : "text-emerald-600 bg-emerald-50";
+      const el = document.createElement("div");
+      el.className = "toast flex gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl";
+      el.innerHTML = `<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${color}"><i data-lucide="${icon}" class="h-4 w-4"></i></div><div class="min-w-0 flex-1"><p class="text-sm font-bold text-slate-900">${safe(title)}</p><p class="mt-1 text-xs leading-5 text-slate-500">${safe(message)}</p></div><button class="toast-close self-start text-slate-400 hover:text-slate-700" aria-label="Tutup"><i data-lucide="x" class="h-4 w-4"></i></button>`;
+      $("toastArea").appendChild(el); lucide.createIcons();
+      el.querySelector(".toast-close").addEventListener("click", () => el.remove());
+      setTimeout(() => el.remove(), 4500);
+    }
+    function showModal(mode = "add", item = null) {
+      editingSku = mode === "edit" && item ? item.sku : null;
+      $("modalTitle").textContent = mode === "edit" ? "Edit bahan baku" : "Tambah bahan baku";
+      $("modalDescription").textContent = mode === "edit" ? "Perbarui informasi bahan ini." : "Masukkan detail bahan baku baru.";
+      $("materialName").value = item?.name || "";
+      $("materialSku").value = item?.sku || "";
+      $("materialSku").disabled = mode === "edit";
+      $("materialUnit").value = item?.unit || "pcs";
+      $("materialStock").value = item?.stock ?? 0;
+      $("materialMin").value = item?.min ?? 10;
+      $("modalRoot").classList.remove("hidden"); $("modalRoot").classList.add("flex");
+      setTimeout(() => $("materialName").focus(), 50);
+    }
+    function closeModal() { $("modalRoot").classList.add("hidden"); $("modalRoot").classList.remove("flex"); }
+    function navigate(page) {
+      const labels = { dashboard: "Dashboard", inventory: "Inventaris bahan baku", movements: "Pergerakan stok", suppliers: "Pemasok" };
+      document.querySelectorAll(".page-section").forEach(section => section.classList.add("hidden"));
+      $(`${page}Page`).classList.remove("hidden");
+      document.querySelectorAll(".sidebar-link").forEach(link => link.classList.toggle("active", link.dataset.page === page));
+      $("pageTitle").textContent = page === "dashboard" ? "Ringkasan inventaris" : labels[page];
+      $("breadcrumb").textContent = labels[page];
+      closeSidebar();
+      lucide.createIcons();
+    }
+    function closeSidebar() { $("sidebar").classList.add("-translate-x-full"); $("sidebarOverlay").classList.add("hidden"); }
+    function openSidebar() { $("sidebar").classList.remove("-translate-x-full"); $("sidebarOverlay").classList.remove("hidden"); }
+
+    document.querySelectorAll("[data-page]").forEach(btn => btn.addEventListener("click", () => navigate(btn.dataset.page)));
+    document.querySelectorAll("[data-go]").forEach(btn => btn.addEventListener("click", () => navigate(btn.dataset.go)));
+    $("openSidebar").addEventListener("click", openSidebar);
+    $("closeSidebar").addEventListener("click", closeSidebar);
+    $("sidebarOverlay").addEventListener("click", closeSidebar);
+    $("addTopButton").addEventListener("click", () => showModal());
+    $("addInventoryButton").addEventListener("click", () => showModal());
+    document.querySelectorAll("[data-close-modal]").forEach(el => el.addEventListener("click", closeModal));
+    $("searchInput").addEventListener("input", renderAll);
+    $("statusFilter").addEventListener("change", renderAll);
+    $("notificationButton").addEventListener("click", () => {
+      const low = materials.filter(isLow);
+      toast("Ringkasan notifikasi", low.length ? `${low.length} bahan perlu ditinjau: ${low.map(i => i.name).join(", ")}.` : "Tidak ada peringatan stok saat ini.", low.length ? "warning" : "success");
+    });
+    $("quickScan").addEventListener("click", () => toast("Simulasi pemindaian", "Kode MAT-003 berhasil dikenali. Fitur kamera/barcode sungguhan belum terhubung pada prototype.", "info"));
+    $("scanInventory").addEventListener("click", () => {
+      const example = materials[Math.floor(Math.random() * materials.length)];
+      toast("Kode berhasil dipindai", `${example.sku} — ${example.name}. Ini simulasi; belum menggunakan kamera atau perangkat scanner.`, "info");
+    });
+    $("helpButton").addEventListener("click", () => toast("Pusat bantuan", "Prototype ini menggunakan data contoh. Gunakan menu Inventaris untuk menambah, mengedit, atau menyesuaikan stok.", "info"));
+    $("chartPeriod").addEventListener("click", () => toast("Periode aktivitas", "Grafik saat ini menampilkan simulasi aktivitas 7 hari terakhir.", "info"));
+    $("exportButton").addEventListener("click", () => {
+      const header = ["Nama Bahan", "SKU", "Stok", "Satuan", "Batas Minimum", "Status", "Lokasi"];
+      const rows = materials.map(i => [i.name, i.sku, i.stock, i.unit, i.min, isLow(i) ? "Menipis" : "Aman", i.location || "Rak baru"]);
+      const csv = [header, ...rows].map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "laporan-inventaris-fabrikan.csv"; a.click(); URL.revokeObjectURL(url);
+      toast("Laporan siap", "File CSV inventaris berhasil dibuat dari data simulasi.");
+    });
+    $("addSupplierButton").addEventListener("click", () => toast("Modul pemasok", "Form pemasok belum termasuk cakupan MVP awal.", "info"));
+    document.querySelectorAll(".supplier-order").forEach(btn => btn.addEventListener("click", () => toast("Draft pengadaan dibuat", `Draft pesanan untuk ${btn.dataset.supplier} disimulasikan. Belum dikirim ke pemasok.`, "success")));
+
+    $("inventoryTableBody").addEventListener("click", (event) => {
+      const editBtn = event.target.closest(".edit-item");
+      const adjustBtn = event.target.closest(".adjust-stock");
+      if (editBtn) {
+        const item = materials.find(i => i.sku === editBtn.dataset.sku);
+        if (item) showModal("edit", item);
+      }
+      if (adjustBtn) {
+        const item = materials.find(i => i.sku === adjustBtn.dataset.sku);
+        if (!item) return;
+        const raw = prompt(`Penyesuaian stok untuk ${item.name}.\nMasukkan angka positif untuk stok masuk, negatif untuk stok keluar:`, "10");
+        if (raw === null) return;
+        const delta = Number(raw);
+        if (!Number.isInteger(delta) || delta === 0 || item.stock + delta < 0) { toast("Penyesuaian tidak valid", "Masukkan bilangan bulat bukan nol dan pastikan stok tidak menjadi negatif.", "warning"); return; }
+        item.stock += delta;
+        movements.unshift({ time: "Baru saja", name: item.name, type: delta > 0 ? "Masuk" : "Keluar", qty: `${delta > 0 ? "+" : ""}${delta} ${item.unit}`, staff: "Admin Gudang" });
+        toast("Stok diperbarui", `${item.name}: ${formatNumber(item.stock)} ${item.unit} tersedia.`);
+        renderAll();
+      }
+    });
+    $("inventoryForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const name = $("materialName").value.trim();
+      const sku = $("materialSku").value.trim().toUpperCase();
+      const unit = $("materialUnit").value;
+      const stock = Number($("materialStock").value);
+      const min = Number($("materialMin").value);
+      if (!name || !sku || !Number.isInteger(stock) || stock < 0 || !Number.isInteger(min) || min < 0) { toast("Periksa data", "Pastikan nama, SKU, stok, dan batas minimum terisi dengan benar.", "warning"); return; }
+      if (!editingSku && materials.some(i => i.sku.toLowerCase() === sku.toLowerCase())) { toast("SKU sudah digunakan", "Gunakan kode SKU yang berbeda untuk setiap bahan.", "warning"); return; }
+      if (editingSku) {
+        const item = materials.find(i => i.sku === editingSku);
+        if (item) Object.assign(item, { name, unit, stock, min });
+        toast("Bahan diperbarui", `${name} berhasil diperbarui.`);
+      } else {
+        materials.unshift({ name, sku, unit, stock, min, location: "Rak baru" });
+        movements.unshift({ time: "Baru saja", name, type: "Masuk", qty: `+${stock} ${unit}`, staff: "Admin Gudang" });
+        toast("Bahan ditambahkan", `${name} berhasil masuk ke daftar inventaris.`);
+      }
+      closeModal(); renderAll(); navigate("inventory");
+    });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+    renderAll();
+  </script>
+</body>
+</html>

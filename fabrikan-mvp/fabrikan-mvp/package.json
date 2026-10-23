@@ -1,0 +1,12 @@
+{
+  "name": "fabrikan-mvp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Prototype front-end Fabrikan.id - Smart Inventory & Supply Chain Management",
+  "scripts": {
+    "start": "serve -s . -l ${PORT:-3000}"
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
+  }
+}
